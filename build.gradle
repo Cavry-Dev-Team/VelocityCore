@@ -1,0 +1,78 @@
+import groovy.json.JsonOutput
+
+plugins {
+    id 'java'
+    id 'eclipse'
+    id "org.jetbrains.gradle.plugin.idea-ext" version "1.0.1"
+}
+
+group = 'dev.necr'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "papermc-repo"
+        url = "https://repo.papermc.io/repository/maven-public/"
+    }
+    maven {
+        name = "sonatype-snapshots"
+        url = "https://oss.sonatype.org/content/repositories/snapshots/"
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
+}
+
+dependencies {
+    // Lombok Annotations
+    implementation 'org.projectlombok:lombok:1.18.28'
+    annotationProcessor 'org.projectlombok:lombok:1.18.28'
+
+    // Velocity API
+    compileOnly "com.velocitypowered:velocity-api:3.3.0-SNAPSHOT"
+    annotationProcessor "com.velocitypowered:velocity-api:3.3.0-SNAPSHOT"
+
+    // Cloud Command Framework
+    implementation 'org.incendo:cloud-core:2.0.0-beta.4'
+    implementation 'org.incendo:cloud-velocity:2.0.0-beta.4'
+    implementation 'org.incendo:cloud-brigadier:2.0.0-beta.4'
+    implementation 'org.incendo:cloud-annotations:2.0.0-beta.4'
+    implementation 'org.incendo:cloud-minecraft-extras:2.0.0-beta.4'
+    implementation 'org.incendo:cloud-services:2.0.0-beta.4'
+}
+
+def targetJavaVersion = 17
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        options.release.set(targetJavaVersion)
+    }
+}
+
+def templateSource = file('src/main/templates')
+def templateDest = layout.buildDirectory.dir('generated/sources/templates')
+def generateTemplates = tasks.register('generateTemplates', Copy) { task ->
+    def props = [
+            'version': project.version
+    ]
+    task.inputs.properties props
+
+    task.from templateSource
+    task.into templateDest
+    task.expand props
+}
+sourceSets.main.java.srcDir(generateTemplates.map { it.outputs })
+
+rootProject.idea.project.settings.taskTriggers.afterSync generateTemplates
+project.eclipse.synchronizationTasks(generateTemplates)
